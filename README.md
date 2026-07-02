@@ -4,6 +4,25 @@ Reusable scaffold for **Next.js 16 + Supabase PKCE auth** with React Hook Form, 
 
 **Requires [pnpm](https://pnpm.io/).** All installs and `create-next-app` use pnpm exclusively.
 
+## Scaffold phases
+
+The script runs in three phases to avoid collisions with `create-next-app`:
+
+| Phase | What happens |
+|-------|----------------|
+| **1. Create / validate** | `create-next-app` or `--into` existing project — no file modifications |
+| **2. Install** | `pnpm-workspace.yaml` + `pnpm install --ignore-scripts` + auth deps |
+| **3. Apply scaffold** | Copy all templates, configure `next-intl`, write `.env` |
+
+### next-intl configuration (Phase 3)
+
+Always applied after install:
+
+- `next.config.ts` → `createNextIntlPlugin()` wrapper
+- `i18n/request.ts` → cookie-based locale + messages loader
+- `i18n/routing.ts` → locale routing config
+- `locales/<locale>.json` → UI copy
+
 ## Quick start
 
 ```bash

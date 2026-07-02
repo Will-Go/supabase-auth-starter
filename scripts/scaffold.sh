@@ -5,6 +5,11 @@ set -euo pipefail
 # Usage:
 #   ./scripts/scaffold.sh my-app              # new Next.js 16 project
 #   ./scripts/scaffold.sh --into ./existing   # overlay into existing project
+#
+# Phases:
+#   1. Create or validate project
+#   2. Install all dependencies (pnpm, --ignore-scripts)
+#   3. Apply scaffold files + i18n/next.config configuration
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STARTER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -20,6 +25,7 @@ DRY_RUN=false
 FORCE=false
 SKIP_INSTALL=false
 PROJECT_NAME=""
+TARGET_DIR=""
 
 AUTH_DEPS=(
   "@supabase/ssr"
@@ -35,13 +41,13 @@ AUTH_DEPS=(
   "zod"
 )
 
-log() { echo "[supabase-auth-starter] $*"; }
+log() { echo "[supabase-auth-starter] $*" >&2; }
 warn() { echo "[supabase-auth-starter] WARNING: $*" >&2; }
 die() { echo "[supabase-auth-starter] ERROR: $*" >&2; exit 1; }
 
 run() {
   if $DRY_RUN; then
-    echo "[dry-run] $*"
+    echo "[dry-run] $*" >&2
   else
     "$@"
   fi
@@ -123,34 +129,10 @@ require_pnpm() {
   fi
 }
 
-pnpm_install() {
-  local target="$1"
-  shift
-  run pnpm --dir "$target" add --ignore-scripts "$@"
-  run pnpm --dir "$target" install --ignore-scripts
-}
-
-write_env_file() {
-  local target="$1"
-  local src="$CONFIG_DIR/env"
-  local dest="$target/.env"
-
-  [[ -f "$src" ]] || die "Env template not found: $src"
-
-  if [[ -f "$dest" && "$FORCE" != true ]]; then
-    warn "Skipping .env (exists — use --force to overwrite)"
-    return 0
-  fi
-
-  if $DRY_RUN; then
-    echo "[dry-run] write $dest from $src"
-    return 0
-  fi
-
-  cp "$src" "$dest"
-  sed -i '' "s/{{LOCALE}}/$LOCALE/g" "$dest" 2>/dev/null || sed -i "s/{{LOCALE}}/$LOCALE/g" "$dest"
-  sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest" 2>/dev/null || sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest"
-  log "Created $dest"
+apply_template_vars() {
+  local file="$1"
+  sed -i '' "s/{{LOCALE}}/$LOCALE/g" "$file" 2>/dev/null || sed -i "s/{{LOCALE}}/$LOCALE/g" "$file"
+  sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$file" 2>/dev/null || sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$file"
 }
 
 copy_file() {
@@ -165,14 +147,13 @@ copy_file() {
 
   run mkdir -p "$(dirname "$dest")"
   if $DRY_RUN; then
-    echo "[dry-run] cp $src -> $dest"
-  else
-    cp "$src" "$dest"
-    # Replace template variables
-    if [[ "$dest" == *.ts || "$dest" == *.tsx || "$dest" == *.json || "$dest" == *.html || "$dest" == *.css || "$dest" == *"/.env" ]]; then
-      sed -i '' "s/{{LOCALE}}/$LOCALE/g" "$dest" 2>/dev/null || sed -i "s/{{LOCALE}}/$LOCALE/g" "$dest"
-      sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest" 2>/dev/null || sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest"
-    fi
+    echo "[dry-run] cp $src -> $dest" >&2
+    return 0
+  fi
+
+  cp "$src" "$dest"
+  if [[ "$dest" == *.ts || "$dest" == *.tsx || "$dest" == *.json || "$dest" == *.html || "$dest" == *.css || "$dest" == *"/.env" ]]; then
+    apply_template_vars "$dest"
   fi
 }
 
@@ -181,9 +162,7 @@ copy_tree() {
   local dest_dir="$2"
   local always_overwrite="${3:-false}"
 
-  if [[ ! -d "$src_dir" ]]; then
-    die "Template directory not found: $src_dir"
-  fi
+  [[ -d "$src_dir" ]] || die "Template directory not found: $src_dir"
 
   while IFS= read -r -d '' file; do
     local rel="${file#$src_dir/}"
@@ -211,64 +190,109 @@ validate_target() {
   fi
 }
 
+# ---------------------------------------------------------------------------
+# Phase 1: Create or resolve project directory
+# ---------------------------------------------------------------------------
+
 create_next_app() {
   local name="$1"
   local parent
   parent="$(dirname "$name")"
-  local base
-  base="$(basename "$name")"
 
   if [[ "$parent" != "." && "$parent" != "$name" ]]; then
     run mkdir -p "$parent"
   fi
 
-  log "Creating Next.js 16 app: $name"
+  log "Phase 1: Creating Next.js 16 app: $name"
 
   if $DRY_RUN; then
-    echo "[dry-run] create-next-app $base in $parent"
+    log "[dry-run] pnpm create next-app@16 $name"
     return
   fi
 
-  run pnpm create next-app@16 "$name" \
+  # Stderr only — stdout would pollute TARGET_DIR if captured via command substitution
+  pnpm create next-app@16 "$name" \
     --typescript --tailwind --eslint --app --no-src-dir \
-    --import-alias "@/*" --use-pnpm --yes
+    --import-alias "@/*" --use-pnpm --yes >&2 || true
 
-  # create-next-app install may fail on blocked build scripts — fix workspace + reinstall
-  if [[ -f "$CONFIG_DIR/pnpm-workspace.yaml" ]]; then
-    cp "$CONFIG_DIR/pnpm-workspace.yaml" "$name/pnpm-workspace.yaml"
-  fi
-  run pnpm --dir "$name" install --ignore-scripts
+  [[ -d "$name" ]] || die "create-next-app did not create directory: $name"
 }
 
-patch_next_config() {
+resolve_target() {
+  TARGET_DIR=""
+
+  if [[ -n "$INTO" ]]; then
+    TARGET_DIR="$(cd "$INTO" && pwd)"
+    PROJECT_NAME="$(basename "$TARGET_DIR")"
+    log "Phase 1: Using existing project at $TARGET_DIR"
+    validate_target "$TARGET_DIR"
+    return
+  fi
+
+  if [[ -d "$PROJECT_NAME" && "$FORCE" != true ]]; then
+    die "Directory exists: $PROJECT_NAME (use --force or choose another name)"
+  fi
+
+  create_next_app "$PROJECT_NAME"
+  TARGET_DIR="$(cd "$PROJECT_NAME" && pwd)"
+  validate_target "$TARGET_DIR"
+}
+
+# ---------------------------------------------------------------------------
+# Phase 2: Install dependencies (before any scaffold file writes)
+# ---------------------------------------------------------------------------
+
+setup_pnpm_workspace() {
   local target="$1"
-  local config="$target/next.config.ts"
+  if [[ -f "$CONFIG_DIR/pnpm-workspace.yaml" ]]; then
+    copy_file "$CONFIG_DIR/pnpm-workspace.yaml" "$target/pnpm-workspace.yaml" true
+  fi
+}
 
-  if [[ ! -f "$config" ]]; then
-    local config_mjs="$target/next.config.mjs"
-    if [[ -f "$config_mjs" ]]; then
-      warn "Found next.config.mjs — copy next.config.ts template manually or rename"
-      copy_file "$CONFIG_DIR/next.config.ts" "$target/next.config.ts"
-      return
-    fi
-    copy_file "$CONFIG_DIR/next.config.ts" "$config"
+pnpm_install_all() {
+  local target="$1"
+  run pnpm --dir "$target" install --ignore-scripts
+}
+
+install_auth_dependencies() {
+  local target="$1"
+
+  if $SKIP_INSTALL; then
+    log "Phase 2: Skipping dependency installation (--skip-install)"
     return
   fi
 
-  if grep -q "createNextIntlPlugin" "$config" 2>/dev/null; then
-    log "next.config already has next-intl plugin"
-    return
+  log "Phase 2: Installing dependencies..."
+
+  setup_pnpm_workspace "$target"
+  pnpm_install_all "$target"
+
+  log "Adding auth stack packages..."
+  run pnpm --dir "$target" add --ignore-scripts "${AUTH_DEPS[@]}"
+  pnpm_install_all "$target"
+
+  log "Dependencies installed."
+}
+
+# ---------------------------------------------------------------------------
+# Phase 3: Apply scaffold files (after installation — avoids create-next-app collisions)
+# ---------------------------------------------------------------------------
+
+configure_next_intl() {
+  local target="$1"
+
+  log "Configuring next-intl..."
+
+  # next.config.ts — required plugin wiring (always apply after install)
+  copy_file "$CONFIG_DIR/next.config.ts" "$target/next.config.ts" true
+
+  # i18n/request.ts + i18n/routing.ts are copied via core tree;
+  # verify they landed
+  if [[ ! -f "$target/i18n/request.ts" && ! $DRY_RUN ]]; then
+    die "Missing i18n/request.ts after scaffold — check templates/core/i18n/"
   fi
 
-  if $FORCE; then
-    copy_file "$CONFIG_DIR/next.config.ts" "$config"
-    return
-  fi
-
-  warn "next.config.ts exists without next-intl — merge manually:"
-  warn "  import createNextIntlPlugin from 'next-intl/plugin';"
-  warn "  const withNextIntl = createNextIntlPlugin();"
-  warn "  export default withNextIntl(nextConfig);"
+  log "next-intl configured (next.config.ts + i18n/request.ts + i18n/routing.ts)"
 }
 
 patch_tsconfig() {
@@ -301,37 +325,26 @@ patch_tsconfig() {
   log "Added @/* path alias to tsconfig.json"
 }
 
-install_dependencies() {
+write_env_file() {
   local target="$1"
-  if $SKIP_INSTALL; then
-    log "Skipping dependency installation (--skip-install)"
-    return
-  fi
-  log "Installing auth stack dependencies with pnpm (ignore-scripts)..."
-  pnpm_install "$target" "${AUTH_DEPS[@]}"
-}
+  local src="$CONFIG_DIR/env"
+  local dest="$target/.env"
 
-scaffold_files() {
-  local target="$1"
-  log "Copying core auth infrastructure..."
-  copy_tree "$CORE_DIR" "$target"
+  [[ -f "$src" ]] || die "Env template not found: $src"
 
-  log "Copying UI placeholders (customization required)..."
-  copy_tree "$PLACEHOLDERS_DIR" "$target" true
-
-  # Locale file: copy from placeholder with locale name
-  local locale_src="$PLACEHOLDERS_DIR/locales/{{LOCALE}}.json"
-  local locale_src_resolved="${locale_src/\{\{LOCALE\}\}/$LOCALE}"
-  if [[ -f "$locale_src_resolved" ]]; then
-    copy_file "$locale_src_resolved" "$target/locales/$LOCALE.json"
+  if [[ -f "$dest" && "$FORCE" != true ]]; then
+    warn "Skipping .env (exists — use --force to overwrite)"
+    return 0
   fi
 
-  if [[ -f "$CONFIG_DIR/pnpm-workspace.yaml" ]]; then
-    copy_file "$CONFIG_DIR/pnpm-workspace.yaml" "$target/pnpm-workspace.yaml" true
+  if $DRY_RUN; then
+    echo "[dry-run] write $dest from $src"
+    return 0
   fi
 
-  write_env_file "$target"
-  ensure_gitignore_env "$target"
+  cp "$src" "$dest"
+  apply_template_vars "$dest"
+  log "Created $dest"
 }
 
 ensure_gitignore_env() {
@@ -367,7 +380,7 @@ generate_customize_manifest() {
   local dest="$target/CUSTOMIZE.md"
 
   if [[ -f "$STARTER_DIR/CUSTOMIZE.md" ]]; then
-    copy_file "$STARTER_DIR/CUSTOMIZE.md" "$dest"
+    copy_file "$STARTER_DIR/CUSTOMIZE.md" "$dest" true
   fi
 
   if $DRY_RUN; then
@@ -388,6 +401,40 @@ generate_customize_manifest() {
     echo ""
     echo "Generated by supabase-auth-starter on $(date -u +%Y-%m-%dT%H:%MZ)"
   } >> "$dest"
+}
+
+apply_project_scaffold() {
+  local target="$1"
+
+  log "Phase 3: Applying scaffold files..."
+
+  log "  → core auth infrastructure"
+  copy_tree "$CORE_DIR" "$target"
+
+  log "  → UI placeholders (@customization-required)"
+  copy_tree "$PLACEHOLDERS_DIR" "$target" true
+
+  local locale_src="$PLACEHOLDERS_DIR/locales/{{LOCALE}}.json"
+  local locale_src_resolved="${locale_src/\{\{LOCALE\}\}/$LOCALE}"
+  if [[ -f "$locale_src_resolved" ]]; then
+    log "  → locales/$LOCALE.json"
+    copy_file "$locale_src_resolved" "$target/locales/$LOCALE.json" true
+  fi
+
+  log "  → next-intl configuration"
+  configure_next_intl "$target"
+
+  log "  → tsconfig paths"
+  patch_tsconfig "$target"
+
+  log "  → environment file"
+  write_env_file "$target"
+  ensure_gitignore_env "$target"
+
+  log "  → CUSTOMIZE.md"
+  generate_customize_manifest "$target"
+
+  log "Scaffold files applied."
 }
 
 print_post_setup() {
@@ -411,6 +458,12 @@ Next steps:
   6. Review shared/constants/systemRoutes.ts for protected routes
   7. pnpm dev
 
+Configured:
+  - next.config.ts  → createNextIntlPlugin() (next-intl)
+  - i18n/request.ts → cookie-based locale + messages loader
+  - i18n/routing.ts → locale routing config
+  - proxy.ts        → session refresh + route guards
+
 Auth routes:
   GET /auth/callback  — PKCE OAuth code exchange
   GET /auth/confirm   — Email OTP verify (email, recovery)
@@ -426,26 +479,13 @@ main() {
   parse_args "$@"
   require_pnpm
 
-  local target=""
+  resolve_target
+  [[ -n "$TARGET_DIR" ]] || die "Failed to resolve target directory"
 
-  if [[ -n "$INTO" ]]; then
-    target="$(cd "$INTO" && pwd)"
-    PROJECT_NAME="$(basename "$target")"
-    validate_target "$target"
-  else
-    if [[ -d "$PROJECT_NAME" && "$FORCE" != true ]]; then
-      die "Directory exists: $PROJECT_NAME (use --force or choose another name)"
-    fi
-    create_next_app "$PROJECT_NAME"
-    target="$(cd "$PROJECT_NAME" && pwd)"
-    validate_target "$target"
-  fi
+  local target="$TARGET_DIR"
 
-  scaffold_files "$target"
-  patch_next_config "$target"
-  patch_tsconfig "$target"
-  generate_customize_manifest "$target"
-  install_dependencies "$target"
+  install_auth_dependencies "$target"
+  apply_project_scaffold "$target"
   print_post_setup "$target"
 }
 
