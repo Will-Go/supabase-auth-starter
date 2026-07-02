@@ -126,7 +126,31 @@ require_pnpm() {
 pnpm_install() {
   local target="$1"
   shift
-  run pnpm --dir "$target" add "$@"
+  run pnpm --dir "$target" add --ignore-scripts "$@"
+  run pnpm --dir "$target" install --ignore-scripts
+}
+
+write_env_file() {
+  local target="$1"
+  local src="$CONFIG_DIR/env"
+  local dest="$target/.env"
+
+  [[ -f "$src" ]] || die "Env template not found: $src"
+
+  if [[ -f "$dest" && "$FORCE" != true ]]; then
+    warn "Skipping .env (exists — use --force to overwrite)"
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    echo "[dry-run] write $dest from $src"
+    return 0
+  fi
+
+  cp "$src" "$dest"
+  sed -i '' "s/{{LOCALE}}/$LOCALE/g" "$dest" 2>/dev/null || sed -i "s/{{LOCALE}}/$LOCALE/g" "$dest"
+  sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest" 2>/dev/null || sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$dest"
+  log "Created $dest"
 }
 
 copy_file() {
@@ -208,6 +232,12 @@ create_next_app() {
   run pnpm create next-app@16 "$name" \
     --typescript --tailwind --eslint --app --no-src-dir \
     --import-alias "@/*" --use-pnpm --yes
+
+  # create-next-app install may fail on blocked build scripts — fix workspace + reinstall
+  if [[ -f "$CONFIG_DIR/pnpm-workspace.yaml" ]]; then
+    cp "$CONFIG_DIR/pnpm-workspace.yaml" "$name/pnpm-workspace.yaml"
+  fi
+  run pnpm --dir "$name" install --ignore-scripts
 }
 
 patch_next_config() {
@@ -277,7 +307,7 @@ install_dependencies() {
     log "Skipping dependency installation (--skip-install)"
     return
   fi
-  log "Installing auth stack dependencies with pnpm..."
+  log "Installing auth stack dependencies with pnpm (ignore-scripts)..."
   pnpm_install "$target" "${AUTH_DEPS[@]}"
 }
 
@@ -296,12 +326,11 @@ scaffold_files() {
     copy_file "$locale_src_resolved" "$target/locales/$LOCALE.json"
   fi
 
-  if [[ ! -f "$target/.env" || "$FORCE" == true ]]; then
-    copy_file "$CONFIG_DIR/env" "$target/.env"
-  else
-    warn "Skipping .env (exists — use --force to overwrite)"
+  if [[ -f "$CONFIG_DIR/pnpm-workspace.yaml" ]]; then
+    copy_file "$CONFIG_DIR/pnpm-workspace.yaml" "$target/pnpm-workspace.yaml" true
   fi
 
+  write_env_file "$target"
   ensure_gitignore_env "$target"
 }
 
@@ -403,7 +432,6 @@ main() {
     target="$(cd "$INTO" && pwd)"
     PROJECT_NAME="$(basename "$target")"
     validate_target "$target"
-    install_dependencies "$target"
   else
     if [[ -d "$PROJECT_NAME" && "$FORCE" != true ]]; then
       die "Directory exists: $PROJECT_NAME (use --force or choose another name)"
@@ -411,13 +439,13 @@ main() {
     create_next_app "$PROJECT_NAME"
     target="$(cd "$PROJECT_NAME" && pwd)"
     validate_target "$target"
-    install_dependencies "$target"
   fi
 
   scaffold_files "$target"
   patch_next_config "$target"
   patch_tsconfig "$target"
   generate_customize_manifest "$target"
+  install_dependencies "$target"
   print_post_setup "$target"
 }
 
