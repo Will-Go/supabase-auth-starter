@@ -41,13 +41,66 @@ AUTH_DEPS=(
   "zod"
 )
 
-log() { echo "[supabase-auth-starter] $*" >&2; }
-warn() { echo "[supabase-auth-starter] WARNING: $*" >&2; }
-die() { echo "[supabase-auth-starter] ERROR: $*" >&2; exit 1; }
+# ── Terminal colors (respect NO_COLOR and non-TTY output) ─────────────────────
+if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+  _R=$'\033[0m'
+  _B=$'\033[1m'
+  _D=$'\033[2m'
+  _RED=$'\033[31m'
+  _GRN=$'\033[32m'
+  _YLW=$'\033[33m'
+  _BLU=$'\033[34m'
+  _MAG=$'\033[35m'
+  _CYN=$'\033[36m'
+  _BCYN=$'\033[96m'
+  _BGRN=$'\033[92m'
+  _BYLW=$'\033[93m'
+  _BMAG=$'\033[95m'
+else
+  _R= _B= _D= _RED= _GRN= _YLW= _BLU= _MAG= _CYN= _BCYN= _BGRN= _BYLW= _BMAG=
+fi
+
+_PREFIX="${_BCYN}${_B}◆ supabase-auth-starter${_R}"
+
+log() {
+  printf '%b %b\n' "$_PREFIX" "$*" >&2
+}
+
+log_phase() {
+  local msg="${*:2}"
+  printf '%b %bPhase %s:%b %b%b%b\n' \
+    "$_PREFIX" "$_BMAG" "$1" "$_R" "$_B" "$msg" "$_R" >&2
+}
+
+log_step() {
+  printf '%b %b  →%b %b%b%b\n' \
+    "$_PREFIX" "$_D" "$_R" "$_BLU" "$*" "$_R" >&2
+}
+
+log_success() {
+  printf '%b %b✓%b %b%b%b\n' \
+    "$_PREFIX" "$_GRN" "$_R" "$_GRN" "$*" "$_R" >&2
+}
+
+warn() {
+  printf '%b %b⚠ WARNING:%b %b%s%b\n' \
+    "$_PREFIX" "$_BYLW" "$_R" "$_YLW" "$*" "$_R" >&2
+}
+
+die() {
+  printf '%b %b✗ ERROR:%b %b%s%b\n' \
+    "$_PREFIX" "$_RED" "$_R" "$_RED" "$*" "$_R" >&2
+  exit 1
+}
+
+dry_echo() {
+  printf '%b %b[dry-run]%b %b%s%b\n' \
+    "$_PREFIX" "$_D" "$_R" "$_D" "$*" "$_R" >&2
+}
 
 run() {
   if $DRY_RUN; then
-    echo "[dry-run] $*" >&2
+    dry_echo "$*"
   else
     "$@"
   fi
@@ -147,7 +200,7 @@ copy_file() {
 
   run mkdir -p "$(dirname "$dest")"
   if $DRY_RUN; then
-    echo "[dry-run] cp $src -> $dest" >&2
+    dry_echo "cp $src -> $dest"
     return 0
   fi
 
@@ -203,10 +256,10 @@ create_next_app() {
     run mkdir -p "$parent"
   fi
 
-  log "Phase 1: Creating Next.js 16 app: $name"
+  log_phase 1 "Creating Next.js 16 app: ${_BCYN}$name${_R}"
 
   if $DRY_RUN; then
-    log "[dry-run] pnpm create next-app@16 $name"
+    dry_echo "pnpm create next-app@16 $name"
     return
   fi
 
@@ -224,7 +277,7 @@ resolve_target() {
   if [[ -n "$INTO" ]]; then
     TARGET_DIR="$(cd "$INTO" && pwd)"
     PROJECT_NAME="$(basename "$TARGET_DIR")"
-    log "Phase 1: Using existing project at $TARGET_DIR"
+    log_phase 1 "Using existing project at ${_BCYN}$TARGET_DIR${_R}"
     validate_target "$TARGET_DIR"
     return
   fi
@@ -258,20 +311,20 @@ install_auth_dependencies() {
   local target="$1"
 
   if $SKIP_INSTALL; then
-    log "Phase 2: Skipping dependency installation (--skip-install)"
+    log_phase 2 "Skipping dependency installation ${_D}(--skip-install)${_R}"
     return
   fi
 
-  log "Phase 2: Installing dependencies..."
+  log_phase 2 "Installing dependencies..."
 
   setup_pnpm_workspace "$target"
   pnpm_install_all "$target"
 
-  log "Adding auth stack packages..."
+  log_step "Adding auth stack packages..."
   run pnpm --dir "$target" add --ignore-scripts "${AUTH_DEPS[@]}"
   pnpm_install_all "$target"
 
-  log "Dependencies installed."
+  log_success "Dependencies installed."
 }
 
 # ---------------------------------------------------------------------------
@@ -281,7 +334,7 @@ install_auth_dependencies() {
 configure_next_intl() {
   local target="$1"
 
-  log "Configuring next-intl..."
+  log_step "Configuring next-intl..."
 
   # next.config.ts — required plugin wiring (always apply after install)
   copy_file "$CONFIG_DIR/next.config.ts" "$target/next.config.ts" true
@@ -292,7 +345,7 @@ configure_next_intl() {
     die "Missing i18n/request.ts after scaffold — check templates/core/i18n/"
   fi
 
-  log "next-intl configured (next.config.ts + i18n/request.ts + i18n/routing.ts)"
+  log_success "next-intl configured ${_D}(next.config.ts + i18n/request.ts + i18n/routing.ts)${_R}"
 }
 
 patch_tsconfig() {
@@ -305,12 +358,12 @@ patch_tsconfig() {
   fi
 
   if grep -q '"@/\*"' "$tsconfig" 2>/dev/null; then
-    log "tsconfig already has @/* path alias"
+    log_step "tsconfig already has ${_BCYN}@/*${_R} path alias"
     return
   fi
 
   if $DRY_RUN; then
-    echo "[dry-run] patch tsconfig paths in $tsconfig"
+    dry_echo "patch tsconfig paths in $tsconfig"
     return
   fi
 
@@ -322,7 +375,7 @@ patch_tsconfig() {
     j.compilerOptions.paths = { ...(j.compilerOptions.paths || {}), '@/*': ['./*'] };
     fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
   "
-  log "Added @/* path alias to tsconfig.json"
+  log_success "Added ${_BCYN}@/*${_R} path alias to tsconfig.json"
 }
 
 write_env_file() {
@@ -338,13 +391,13 @@ write_env_file() {
   fi
 
   if $DRY_RUN; then
-    echo "[dry-run] write $dest from $src"
+    dry_echo "write $dest from $src"
     return 0
   fi
 
   cp "$src" "$dest"
   apply_template_vars "$dest"
-  log "Created $dest"
+  log_success "Created ${_BCYN}$dest${_R}"
 }
 
 ensure_gitignore_env() {
@@ -352,13 +405,13 @@ ensure_gitignore_env() {
   local gitignore="$target/.gitignore"
 
   if $DRY_RUN; then
-    echo "[dry-run] ensure .env in .gitignore"
+    dry_echo "ensure .env in .gitignore"
     return
   fi
 
   if [[ ! -f "$gitignore" ]]; then
     printf '%s\n' ".env" ".env*.local" > "$gitignore"
-    log "Created .gitignore with .env"
+    log_success "Created .gitignore with ${_BCYN}.env${_R}"
     return
   fi
 
@@ -372,7 +425,7 @@ ensure_gitignore_env() {
     echo ".env"
     echo ".env*.local"
   } >> "$gitignore"
-  log "Added .env to .gitignore"
+  log_success "Added ${_BCYN}.env${_R} to .gitignore"
 }
 
 generate_customize_manifest() {
@@ -384,7 +437,7 @@ generate_customize_manifest() {
   fi
 
   if $DRY_RUN; then
-    echo "[dry-run] generate CUSTOMIZE.md at $dest"
+    dry_echo "generate CUSTOMIZE.md at $dest"
     return
   fi
 
@@ -406,73 +459,68 @@ generate_customize_manifest() {
 apply_project_scaffold() {
   local target="$1"
 
-  log "Phase 3: Applying scaffold files..."
+  log_phase 3 "Applying scaffold files..."
 
-  log "  → core auth infrastructure"
+  log_step "core auth infrastructure"
   copy_tree "$CORE_DIR" "$target"
 
-  log "  → UI placeholders (@customization-required)"
+  log_step "UI placeholders ${_BYLW}(@customization-required)${_R}"
   copy_tree "$PLACEHOLDERS_DIR" "$target" true
 
   local locale_src="$PLACEHOLDERS_DIR/locales/{{LOCALE}}.json"
   local locale_src_resolved="${locale_src/\{\{LOCALE\}\}/$LOCALE}"
   if [[ -f "$locale_src_resolved" ]]; then
-    log "  → locales/$LOCALE.json"
+    log_step "locales/${_BCYN}$LOCALE.json${_R}"
     copy_file "$locale_src_resolved" "$target/locales/$LOCALE.json" true
   fi
 
-  log "  → next-intl configuration"
+  log_step "next-intl configuration"
   configure_next_intl "$target"
 
-  log "  → tsconfig paths"
+  log_step "tsconfig paths"
   patch_tsconfig "$target"
 
-  log "  → environment file"
+  log_step "environment file"
   write_env_file "$target"
   ensure_gitignore_env "$target"
 
-  log "  → CUSTOMIZE.md"
+  log_step "CUSTOMIZE.md"
   generate_customize_manifest "$target"
 
-  log "Scaffold files applied."
+  log_success "Scaffold files applied."
 }
 
 print_post_setup() {
   local target="$1"
-  cat <<EOF
-
-================================================================================
- Supabase Auth PKCE scaffold complete: $target
-================================================================================
-
-Next steps:
-
-  1. cd $target
-  2. Fill in .env with your Supabase keys
-  3. Supabase Dashboard → Authentication → URL Configuration:
-       Site URL: http://localhost:3000
-       Redirect URLs: http://localhost:3000/auth/callback
-  4. Upload templates/email/*.html to Supabase Auth email templates
-  5. Customize UI placeholders — see CUSTOMIZE.md
-     grep -r "@customization-required" .
-  6. Review shared/constants/systemRoutes.ts for protected routes
-  7. pnpm dev
-
-Configured:
-  - next.config.ts  → createNextIntlPlugin() (next-intl)
-  - i18n/request.ts → cookie-based locale + messages loader
-  - i18n/routing.ts → locale routing config
-  - proxy.ts        → session refresh + route guards
-
-Auth routes:
-  GET /auth/callback  — PKCE OAuth code exchange
-  GET /auth/confirm   — Email OTP verify (email, recovery)
-
-Pages:
-  /login /register /forgot-password /reset-password /welcome
-
-================================================================================
-EOF
+  printf '\n' >&2
+  printf '%b\n' "${_BGRN}══════════════════════════════════════════════════════════════════════════════${_R}" >&2
+  printf ' %b✓ Supabase Auth PKCE scaffold complete%b\n' "$_B$_BGRN" "$_R" >&2
+  printf ' %b→%b %b%s%b\n' "$_D" "$_R" "$_BCYN" "$target" "$_R" >&2
+  printf '%b\n' "${_BGRN}══════════════════════════════════════════════════════════════════════════════${_R}" >&2
+  printf '\n' >&2
+  printf '%bNext steps:%b\n\n' "$_B$_MAG" "$_R" >&2
+  printf '  %b1.%b cd %b%s%b\n' "$_BMAG" "$_R" "$_BCYN" "$target" "$_R" >&2
+  printf '  %b2.%b Fill in %b.env%b with your Supabase keys\n' "$_BMAG" "$_R" "$_BCYN" "$_R" >&2
+  printf '  %b3.%b Supabase Dashboard → Authentication → URL Configuration:\n' "$_BMAG" "$_R" >&2
+  printf '       Site URL: %bhttp://localhost:3000%b\n' "$_BLU" "$_R" >&2
+  printf '       Redirect URLs: %bhttp://localhost:3000/auth/callback%b\n' "$_BLU" "$_R" >&2
+  printf '  %b4.%b Upload %btemplates/email/*.html%b to Supabase Auth email templates\n' "$_BMAG" "$_R" "$_BCYN" "$_R" >&2
+  printf '  %b5.%b Customize UI placeholders — see %bCUSTOMIZE.md%b\n' "$_BMAG" "$_R" "$_BCYN" "$_R" >&2
+  printf '     %bgrep -r "@customization-required" .%b\n' "$_D" "$_R" >&2
+  printf '  %b6.%b Review %bshared/constants/systemRoutes.ts%b for protected routes\n' "$_BMAG" "$_R" "$_BCYN" "$_R" >&2
+  printf '  %b7.%b %bpnpm dev%b\n\n' "$_BMAG" "$_R" "$_BGRN" "$_R" >&2
+  printf '%bConfigured:%b\n' "$_B$_CYN" "$_R" >&2
+  printf '  %b•%b next.config.ts  %b→%b createNextIntlPlugin() (next-intl)\n' "$_CYN" "$_R" "$_D" "$_R" >&2
+  printf '  %b•%b i18n/request.ts %b→%b cookie-based locale + messages loader\n' "$_CYN" "$_R" "$_D" "$_R" >&2
+  printf '  %b•%b i18n/routing.ts %b→%b locale routing config\n' "$_CYN" "$_R" "$_D" "$_R" >&2
+  printf '  %b•%b proxy.ts        %b→%b session refresh + route guards\n\n' "$_CYN" "$_R" "$_D" "$_R" >&2
+  printf '%bAuth routes:%b\n' "$_B$_CYN" "$_R" >&2
+  printf '  %bGET%b /auth/callback  %b—%b PKCE OAuth code exchange\n' "$_BGRN" "$_R" "$_D" "$_R" >&2
+  printf '  %bGET%b /auth/confirm   %b—%b Email OTP verify (email, recovery)\n\n' "$_BGRN" "$_R" "$_D" "$_R" >&2
+  printf '%bPages:%b\n' "$_B$_CYN" "$_R" >&2
+  printf '  %b/login%b %b/register%b %b/forgot-password%b %b/reset-password%b %b/welcome%b\n\n' \
+    "$_BLU" "$_R" "$_BLU" "$_R" "$_BLU" "$_R" "$_BLU" "$_R" "$_BLU" "$_R" >&2
+  printf '%b\n' "${_BGRN}══════════════════════════════════════════════════════════════════════════════${_R}" >&2
 }
 
 main() {
