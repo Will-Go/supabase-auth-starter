@@ -1,0 +1,126 @@
+{
+  "home": {
+    "title": "Supabase Auth",
+    "subtitle": "Autenticación con PKCE, confirmación por email y recuperación de contraseña.",
+    "signedInAs": "Sesión iniciada como",
+    "goToWelcome": "Ir al panel",
+    "login": "Iniciar sesión",
+    "register": "Registrarse"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión",
+      "subtitle": "Accede a tu cuenta",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "rememberMe": "Recordarme",
+      "forgotPassword": "¿Olvidaste tu contraseña?",
+      "signIn": "Entrar",
+      "signingIn": "Entrando...",
+      "signInWithGoogle": "Continuar con Google",
+      "or": "o",
+      "noAccount": "¿No tienes cuenta?",
+      "signUp": "Regístrate",
+      "success": "Sesión iniciada correctamente",
+      "error": "Error al iniciar sesión"
+    },
+    "register": {
+      "title": "Crear cuenta",
+      "subtitle": "Regístrate con tu correo electrónico",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "createAccount": "Crear cuenta",
+      "creating": "Creando cuenta...",
+      "registerWithGoogle": "Registrarse con Google",
+      "or": "o",
+      "hasAccount": "¿Ya tienes cuenta?",
+      "signIn": "Inicia sesión",
+      "success": "Cuenta creada. Revisa tu correo.",
+      "error": "Error al registrarse",
+      "successTitle": "Revisa tu correo",
+      "successSubtitle": "Te enviamos un enlace de confirmación",
+      "successMessage": "Haz clic en el enlace del correo para activar tu cuenta antes de iniciar sesión.",
+      "goToLogin": "Ir a iniciar sesión"
+    },
+    "forgotPassword": {
+      "title": "Recuperar contraseña",
+      "subtitle": "Te enviaremos un enlace para restablecer tu contraseña",
+      "email": "Correo electrónico",
+      "sendLink": "Enviar enlace",
+      "sending": "Enviando...",
+      "backToLogin": "Volver a iniciar sesión",
+      "success": "Enlace enviado",
+      "error": "Error al enviar el enlace",
+      "successTitle": "Revisa tu correo",
+      "successSubtitle": "Enlace de recuperación enviado",
+      "successMessage": "Si existe una cuenta con ese correo, recibirás un enlace para restablecer tu contraseña.",
+      "sendAgain": "Enviar de nuevo"
+    },
+    "resetPassword": {
+      "title": "Nueva contraseña",
+      "subtitle": "Elige una contraseña segura",
+      "newPassword": "Nueva contraseña",
+      "confirmPassword": "Confirmar contraseña",
+      "updatePassword": "Actualizar contraseña",
+      "updating": "Actualizando...",
+      "backToLogin": "Volver a iniciar sesión",
+      "success": "Contraseña actualizada",
+      "error": "Error al actualizar la contraseña",
+      "successTitle": "Contraseña actualizada",
+      "successSubtitle": "Ya puedes iniciar sesión",
+      "successMessage": "Tu contraseña se actualizó correctamente.",
+      "goToLogin": "Ir a iniciar sesión"
+    },
+    "welcome": {
+      "title": "Bienvenido",
+      "subtitle": "Has iniciado sesión correctamente",
+      "email": "Correo",
+      "signOut": "Cerrar sesión",
+      "backHome": "Volver al inicio",
+      "loading": "Cargando..."
+    },
+    "error": {
+      "title": "Algo salió mal",
+      "subtitle": "No pudimos completar la autenticación",
+      "backToLogin": "Volver a iniciar sesión"
+    },
+    "expiredToken": {
+      "title": "Enlace expirado",
+      "subtitle": "Este enlace ya no es válido. Solicita uno nuevo.",
+      "requestNew": "Solicitar nuevo enlace",
+      "backToLogin": "Volver a iniciar sesión"
+    },
+    "unauthorized": {
+      "title": "No autorizado",
+      "subtitle": "No tienes permiso para acceder a esta página",
+      "backToLogin": "Iniciar sesión"
+    }
+  },
+  "form_error": {
+    "auth": {
+      "email_invalid": "Correo electrónico inválido"
+    },
+    "password": {
+      "required": "La contraseña es obligatoria",
+      "min": "La contraseña debe tener al menos 8 caracteres",
+      "uppercase": "Debe incluir al menos una mayúscula",
+      "lowercase": "Debe incluir al menos una minúscula",
+      "number": "Debe incluir al menos un número",
+      "special": "Debe incluir al menos un carácter especial",
+      "mismatch": "Las contraseñas no coinciden",
+      "confirm_required": "Confirma tu contraseña",
+      "checklistTitle": "Requisitos de contraseña",
+      "checklistMin": "Al menos 8 caracteres",
+      "checklistUppercase": "Al menos una letra mayúscula",
+      "checklistLowercase": "Al menos una letra minúscula",
+      "checklistNumber": "Al menos un número",
+      "checklistSpecial": "Al menos un carácter especial (!@#$%^&*)"
+    }
+  },
+  "server": {
+    "error": {
+      "test": "Test de error"
+    }
+  }
+}

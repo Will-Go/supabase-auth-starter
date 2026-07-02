@@ -1,0 +1,26 @@
+{
+  "placeholderFiles": [
+    "shared/components/auth/AuthUI.tsx",
+    "shared/components/auth/PasswordValidationChecklist.tsx",
+    "app/layout.tsx",
+    "app/page.tsx",
+    "app/globals.css",
+    "app/login/layout.tsx",
+    "app/login/page.tsx",
+    "app/register/layout.tsx",
+    "app/register/page.tsx",
+    "app/forgot-password/page.tsx",
+    "app/reset-password/page.tsx",
+    "app/welcome/page.tsx",
+    "app/error/page.tsx",
+    "app/expired-token/page.tsx",
+    "app/unauthorized/page.tsx",
+    "locales/{{LOCALE}}.json",
+    "templates/email/EmailConfirmation.html",
+    "templates/email/ResetPassword.html"
+  ],
+  "coreFilesRequiringReview": [
+    "shared/constants/systemRoutes.ts",
+    "shared/context/AuthContext.tsx"
+  ]
+}
