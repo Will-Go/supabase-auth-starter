@@ -26,13 +26,21 @@ Always applied after install:
 ## Quick start
 
 ```bash
-# From repo root
-
-# New project
+# macOS / Linux
 ./supabase-auth-starter/scripts/scaffold.sh my-app
-
-# Existing Next.js 16 app
 ./supabase-auth-starter/scripts/scaffold.sh --into ./my-existing-app
+```
+
+```powershell
+# Windows (PowerShell)
+.\supabase-auth-starter\scripts\scaffold.ps1 my-app
+.\supabase-auth-starter\scripts\scaffold.ps1 -Into .\my-existing-app
+```
+
+```cmd
+REM Windows (Command Prompt)
+supabase-auth-starter\scripts\scaffold.cmd my-app
+supabase-auth-starter\scripts\scaffold.cmd --into .\my-existing-app
 ```
 
 ## CLI options
@@ -148,7 +156,10 @@ supabase-auth-starter/
 ├── SKILL.md
 ├── README.md
 ├── CUSTOMIZE.md
-├── scripts/scaffold.sh
+├── scripts/
+│   ├── scaffold.sh       # macOS / Linux
+│   ├── scaffold.ps1      # Windows (PowerShell)
+│   └── scaffold.cmd      # Windows (cmd launcher)
 └── templates/
     ├── core/           # Copy as-is
     ├── placeholders/   # UI — always overwrites, needs customization
