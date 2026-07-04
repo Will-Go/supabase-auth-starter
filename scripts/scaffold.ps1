@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Supabase Auth PKCE Jump Starter — scaffold script (Windows / PowerShell)
+  Supabase Auth PKCE Jump Starter - scaffold script (Windows / PowerShell)
 
 .DESCRIPTION
   Usage:
@@ -53,39 +53,82 @@ $AuthDeps = @(
   'zod'
 )
 
-$ScriptDir = $PSScriptRoot
+function Enable-AnsiSupport {
+  if ($env:OS -ne 'Windows_NT') { return }
+
+  try {
+    $sig = @'
+using System;
+using System.Runtime.InteropServices;
+public static class ConsoleVT {
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern IntPtr GetStdHandle(int nStdHandle);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool GetConsoleMode(IntPtr handle, out uint mode);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool SetConsoleMode(IntPtr handle, uint mode);
+}
+'@
+    if (-not ([System.Management.Automation.PSTypeName]'ConsoleVT').Type) {
+      Add-Type -TypeDefinition $sig -ErrorAction Stop | Out-Null
+    }
+
+    $vtFlag = 0x0004
+    foreach ($stdHandle in -11, -12) {
+      $handle = [ConsoleVT]::GetStdHandle($stdHandle)
+      $mode = [uint32]0
+      if ([ConsoleVT]::GetConsoleMode($handle, [ref]$mode)) {
+        [void][ConsoleVT]::SetConsoleMode($handle, $mode -bor $vtFlag)
+      }
+    }
+  } catch {
+    $script:useColor = $false
+  }
+}
+
 $useColor = [string]::IsNullOrEmpty($env:NO_COLOR)
 if ($useColor) {
   try {
-    $useColor = [Console]::IsOutputRedirected -eq $false
+    $useColor = -not [Console]::IsErrorRedirected
   } catch {
     $useColor = $true
   }
 }
 
 if ($useColor) {
-  $R = "`e[0m"
-  $B = "`e[1m"
-  $D = "`e[2m"
-  $RED = "`e[31m"
-  $GRN = "`e[32m"
-  $YLW = "`e[33m"
-  $BLU = "`e[34m"
-  $MAG = "`e[35m"
-  $CYN = "`e[36m"
-  $BCYN = "`e[96m"
-  $BGRN = "`e[92m"
-  $BYLW = "`e[93m"
-  $BMAG = "`e[95m"
+  Enable-AnsiSupport
+}
+
+if ($useColor) {
+  # `e is PS 7+ only; Windows PowerShell 5.1 prints literal "e" without [char]27
+  $Esc = [char]27
+  $R = "${Esc}[0m"
+  $B = "${Esc}[1m"
+  $D = "${Esc}[2m"
+  $RED = "${Esc}[31m"
+  $GRN = "${Esc}[32m"
+  $YLW = "${Esc}[33m"
+  $BLU = "${Esc}[34m"
+  $MAG = "${Esc}[35m"
+  $CYN = "${Esc}[36m"
+  $BCYN = "${Esc}[96m"
+  $BGRN = "${Esc}[92m"
+  $BYLW = "${Esc}[93m"
+  $BMAG = "${Esc}[95m"
 } else {
   $R = $B = $D = $RED = $GRN = $YLW = $BLU = $MAG = $CYN = $BCYN = $BGRN = $BYLW = $BMAG = ''
 }
 
-$Prefix = "${BCYN}${B}◆ supabase-auth-starter${R}"
+$Prefix = ($BCYN + $B + '* supabase-auth-starter' + $R)
+
+function Write-StyledLine {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]] $Parts)
+  [Console]::Error.WriteLine(($Parts -join ''))
+}
 
 function Write-Log {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix $Message")
+  Write-StyledLine $Prefix, ' ', $Message
 }
 
 function Write-LogPhase {
@@ -93,33 +136,33 @@ function Write-LogPhase {
     [int] $Number,
     [string] $Message
   )
-  [Console]::Error.WriteLine("$Prefix ${BMAG}Phase ${Number}:${R} ${B}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $BMAG, 'Phase ', $Number, ':', $R, ' ', $B, $Message, $R
 }
 
 function Write-LogStep {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix ${D}  →${R} ${BLU}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $D, '  ->', $R, ' ', $BLU, $Message, $R
 }
 
 function Write-LogSuccess {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix ${GRN}✓${R} ${GRN}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $GRN, '[OK]', $R, ' ', $GRN, $Message, $R
 }
 
 function Write-Warn {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix ${BYLW}⚠ WARNING:${R} ${YLW}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $BYLW, 'WARN:', $R, ' ', $YLW, $Message, $R
 }
 
 function Stop-Scaffold {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix ${RED}✗ ERROR:${R} ${RED}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $RED, 'ERROR:', $R, ' ', $RED, $Message, $R
   exit 1
 }
 
 function Write-DryEcho {
   param([string] $Message)
-  [Console]::Error.WriteLine("$Prefix ${D}[dry-run]${R} ${D}${Message}${R}")
+  Write-StyledLine $Prefix, ' ', $D, '[dry-run]', $R, ' ', $D, $Message, $R
 }
 
 function Ensure-Directory {
@@ -160,7 +203,7 @@ function Invoke-ScaffoldCommand {
 
 function Show-Usage {
   $name = Split-Path -Leaf $PSCommandPath
-  @"
+  $text = @"
 Usage:
   $name [options] <project-name>
   $name -Into <path> [options]
@@ -177,6 +220,7 @@ Examples:
   $name my-app
   $name -Into .\existing-app -Locale en
 "@
+  [Console]::Error.WriteLine($text)
 }
 
 function Test-Pnpm {
@@ -260,7 +304,7 @@ function Test-TargetProject {
     Stop-Scaffold "No package.json in $Target"
   }
   if (-not (Test-Path -LiteralPath (Join-Path $Target 'app') -PathType Container)) {
-    Stop-Scaffold "No app/ directory in $Target — App Router required"
+    Stop-Scaffold "No app/ directory in $Target - App Router required"
   }
 
   if (-not $Script:DryRun) {
@@ -285,7 +329,7 @@ function New-NextApp {
     Ensure-Directory $parent
   }
 
-  Write-LogPhase 1 "Creating Next.js 16 app: ${BCYN}$Name${R}"
+  Write-LogPhase 1 ('Creating Next.js 16 app: ' + $BCYN + $Name + $R)
 
   if ($Script:DryRun) {
     Write-DryEcho "pnpm create next-app@16 $Name"
@@ -312,7 +356,7 @@ function Resolve-Target {
     $resolved = Resolve-Path -LiteralPath $Script:Into
     $script:TargetDir = $resolved.Path
     $Script:ProjectName = Split-Path -Leaf $script:TargetDir
-    Write-LogPhase 1 "Using existing project at ${BCYN}$($script:TargetDir)${R}"
+    Write-LogPhase 1 ('Using existing project at ' + $BCYN + $script:TargetDir + $R)
     Test-TargetProject $script:TargetDir
     return
   }
@@ -344,7 +388,7 @@ function Install-AuthDependencies {
   param([string] $Target)
 
   if ($Script:SkipInstall) {
-    Write-LogPhase 2 "Skipping dependency installation ${D}(-SkipInstall)${R}"
+    Write-LogPhase 2 ('Skipping dependency installation ' + $D + '(-SkipInstall)' + $R)
     return
   }
 
@@ -370,10 +414,10 @@ function Set-NextIntlConfig {
 
   $requestTs = Join-Path $Target 'i18n\request.ts'
   if (-not (Test-Path -LiteralPath $requestTs) -and -not $Script:DryRun) {
-    Stop-Scaffold 'Missing i18n/request.ts after scaffold — check templates/core/i18n/'
+    Stop-Scaffold 'Missing i18n/request.ts after scaffold - check templates/core/i18n/'
   }
 
-  Write-LogSuccess "next-intl configured ${D}(next.config.ts + i18n/request.ts + i18n/routing.ts)${R}"
+  Write-LogSuccess ('next-intl configured ' + $D + '(next.config.ts + i18n/request.ts + i18n/routing.ts)' + $R)
 }
 
 function Update-TsConfigPaths {
@@ -387,7 +431,7 @@ function Update-TsConfigPaths {
 
   $raw = Get-Content -LiteralPath $tsconfig -Raw
   if ($raw -match '"@/\*"') {
-    Write-LogStep "tsconfig already has ${BCYN}@/*${R} path alias"
+    Write-LogStep ('tsconfig already has ' + $BCYN + '@/*' + $R + ' path alias')
     return
   }
 
@@ -406,7 +450,7 @@ j.compilerOptions.paths = { ...(j.compilerOptions.paths || {}), '@/*': ['./*'] }
 fs.writeFileSync(p, JSON.stringify(j, null, 2) + '\n');
 "@
 
-  Write-LogSuccess "Added ${BCYN}@/*${R} path alias to tsconfig.json"
+  Write-LogSuccess ('Added ' + $BCYN + '@/*' + $R + ' path alias to tsconfig.json')
 }
 
 function Write-EnvFile {
@@ -420,7 +464,7 @@ function Write-EnvFile {
   }
 
   if ((Test-Path -LiteralPath $dest -PathType Leaf) -and -not $Script:Force) {
-    Write-Warn 'Skipping .env (exists — use -Force to overwrite)'
+    Write-Warn 'Skipping .env (exists - use -Force to overwrite)'
     return
   }
 
@@ -431,7 +475,7 @@ function Write-EnvFile {
 
   Copy-Item -LiteralPath $src -Destination $dest -Force
   Set-TemplateVars $dest
-  Write-LogSuccess "Created ${BCYN}$dest${R}"
+  Write-LogSuccess ('Created ' + $BCYN + $dest + $R)
 }
 
 function Ensure-GitignoreEnv {
@@ -446,7 +490,7 @@ function Ensure-GitignoreEnv {
 
   if (-not (Test-Path -LiteralPath $gitignore -PathType Leaf)) {
     @('.env', '.env*.local') | Set-Content -LiteralPath $gitignore -Encoding UTF8
-    Write-LogSuccess "Created .gitignore with ${BCYN}.env${R}"
+    Write-LogSuccess ('Created .gitignore with ' + $BCYN + '.env' + $R)
     return
   }
 
@@ -462,7 +506,7 @@ function Ensure-GitignoreEnv {
     '.env*.local'
   ) | Add-Content -LiteralPath $gitignore -Encoding UTF8
 
-  Write-LogSuccess "Added ${BCYN}.env${R} to .gitignore"
+  Write-LogSuccess ('Added ' + $BCYN + '.env' + $R + ' to .gitignore')
 }
 
 function New-CustomizeManifest {
@@ -508,13 +552,13 @@ function Install-ProjectScaffold {
   Write-LogStep 'core auth infrastructure'
   Copy-ScaffoldTree -SrcDir $CoreDir -DestDir $Target
 
-  Write-LogStep "UI placeholders ${BYLW}(@customization-required)${R}"
+  Write-LogStep ('UI placeholders ' + $BYLW + '(@customization-required)' + $R)
   Copy-ScaffoldTree -SrcDir $PlaceholdersDir -DestDir $Target -AlwaysOverwrite $true
 
   $localeSrc = Join-Path $PlaceholdersDir "locales\{{LOCALE}}.json"
   $localeSrcResolved = $localeSrc -replace '\{\{LOCALE\}\}', $Script:Locale
   if (Test-Path -LiteralPath $localeSrcResolved -PathType Leaf) {
-    Write-LogStep "locales/${BCYN}$($Script:Locale).json${R}"
+    Write-LogStep ('locales/' + $BCYN + $Script:Locale + '.json' + $R)
     Copy-ScaffoldFile -Src $localeSrcResolved -Dest (Join-Path $Target "locales\$($Script:Locale).json") -AlwaysOverwrite $true
   }
 
@@ -537,39 +581,41 @@ function Install-ProjectScaffold {
 function Show-PostSetup {
   param([string] $Target)
 
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${BGRN}══════════════════════════════════════════════════════════════════════════════${R}")
-  [Console]::Error.WriteLine(" ${B}${BGRN}✓ Supabase Auth PKCE scaffold complete${R}")
-  [Console]::Error.WriteLine(" ${D}→${R} ${BCYN}$Target${R}")
-  [Console]::Error.WriteLine("${BGRN}══════════════════════════════════════════════════════════════════════════════${R}")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${B}${MAG}Next steps:${R}")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("  ${BMAG}1.${R} cd ${BCYN}$Target${R}")
-  [Console]::Error.WriteLine("  ${BMAG}2.${R} Fill in ${BCYN}.env${R} with your Supabase keys")
-  [Console]::Error.WriteLine("  ${BMAG}3.${R} Supabase Dashboard → Authentication → URL Configuration:")
-  [Console]::Error.WriteLine("       Site URL: ${BLU}http://localhost:3000${R}")
-  [Console]::Error.WriteLine("       Redirect URLs: ${BLU}http://localhost:3000/auth/callback${R}")
-  [Console]::Error.WriteLine("  ${BMAG}4.${R} Upload ${BCYN}templates/email/*.html${R} to Supabase Auth email templates")
-  [Console]::Error.WriteLine("  ${BMAG}5.${R} Customize UI placeholders — see ${BCYN}CUSTOMIZE.md${R}")
-  [Console]::Error.WriteLine("     ${D}Select-String -Path . -Pattern '@customization-required' -Recurse${R}")
-  [Console]::Error.WriteLine("  ${BMAG}6.${R} Review ${BCYN}shared/constants/systemRoutes.ts${R} for protected routes")
-  [Console]::Error.WriteLine("  ${BMAG}7.${R} ${BGRN}pnpm dev${R}")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${B}${CYN}Configured:${R}")
-  [Console]::Error.WriteLine("  ${CYN}•${R} next.config.ts  ${D}→${R} createNextIntlPlugin() (next-intl)")
-  [Console]::Error.WriteLine("  ${CYN}•${R} i18n/request.ts ${D}→${R} cookie-based locale + messages loader")
-  [Console]::Error.WriteLine("  ${CYN}•${R} i18n/routing.ts ${D}→${R} locale routing config")
-  [Console]::Error.WriteLine("  ${CYN}•${R} proxy.ts        ${D}→${R} session refresh + route guards")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${B}${CYN}Auth routes:${R}")
-  [Console]::Error.WriteLine("  ${BGRN}GET${R} /auth/callback  ${D}—${R} PKCE OAuth code exchange")
-  [Console]::Error.WriteLine("  ${BGRN}GET${R} /auth/confirm   ${D}—${R} Email OTP verify (email, recovery)")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${B}${CYN}Pages:${R}")
-  [Console]::Error.WriteLine("  ${BLU}/login${R} ${BLU}/register${R} ${BLU}/forgot-password${R} ${BLU}/reset-password${R} ${BLU}/welcome${R}")
-  [Console]::Error.WriteLine('')
-  [Console]::Error.WriteLine("${BGRN}══════════════════════════════════════════════════════════════════════════════${R}")
+  $border = $BGRN + ('=' * 78) + $R
+
+  Write-StyledLine ''
+  Write-StyledLine $border
+  Write-StyledLine ' ', $B, $BGRN, '[OK] Supabase Auth PKCE scaffold complete', $R
+  Write-StyledLine ' ', $D, '->', $R, ' ', $BCYN, $Target, $R
+  Write-StyledLine $border
+  Write-StyledLine ''
+  Write-StyledLine $B, $MAG, 'Next steps:', $R
+  Write-StyledLine ''
+  Write-StyledLine '  ', $BMAG, '1.', $R, ' cd ', $BCYN, $Target, $R
+  Write-StyledLine '  ', $BMAG, '2.', $R, ' Fill in ', $BCYN, '.env', $R, ' with your Supabase keys'
+  Write-StyledLine '  ', $BMAG, '3.', $R, ' Supabase Dashboard - Authentication - URL Configuration:'
+  Write-StyledLine '       Site URL: ', $BLU, 'http://localhost:3000', $R
+  Write-StyledLine '       Redirect URLs: ', $BLU, 'http://localhost:3000/auth/callback', $R
+  Write-StyledLine '  ', $BMAG, '4.', $R, ' Upload ', $BCYN, 'templates/email/*.html', $R, ' to Supabase Auth email templates'
+  Write-StyledLine '  ', $BMAG, '5.', $R, ' Customize UI placeholders - see ', $BCYN, 'CUSTOMIZE.md', $R
+  Write-StyledLine '     ', $D, "Select-String -Path . -Pattern '@customization-required' -Recurse", $R
+  Write-StyledLine '  ', $BMAG, '6.', $R, ' Review ', $BCYN, 'shared/constants/systemRoutes.ts', $R, ' for protected routes'
+  Write-StyledLine '  ', $BMAG, '7.', $R, ' ', $BGRN, 'pnpm dev', $R
+  Write-StyledLine ''
+  Write-StyledLine $B, $CYN, 'Configured:', $R
+  Write-StyledLine '  ', $CYN, '*', $R, ' next.config.ts  ', $D, '->', $R, ' createNextIntlPlugin() (next-intl)'
+  Write-StyledLine '  ', $CYN, '*', $R, ' i18n/request.ts ', $D, '->', $R, ' cookie-based locale + messages loader'
+  Write-StyledLine '  ', $CYN, '*', $R, ' i18n/routing.ts ', $D, '->', $R, ' locale routing config'
+  Write-StyledLine '  ', $CYN, '*', $R, ' proxy.ts        ', $D, '->', $R, ' session refresh + route guards'
+  Write-StyledLine ''
+  Write-StyledLine $B, $CYN, 'Auth routes:', $R
+  Write-StyledLine '  ', $BGRN, 'GET', $R, ' /auth/callback  ', $D, '-', $R, ' PKCE OAuth code exchange'
+  Write-StyledLine '  ', $BGRN, 'GET', $R, ' /auth/confirm   ', $D, '-', $R, ' Email OTP verify (email, recovery)'
+  Write-StyledLine ''
+  Write-StyledLine $B, $CYN, 'Pages:', $R
+  Write-StyledLine '  ', $BLU, '/login', $R, ' ', $BLU, '/register', $R, ' ', $BLU, '/forgot-password', $R, ' ', $BLU, '/reset-password', $R, ' ', $BLU, '/welcome', $R
+  Write-StyledLine ''
+  Write-StyledLine $border
 }
 
 function Parse-CliArgs {
@@ -606,7 +652,7 @@ function Parse-CliArgs {
   }
 }
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# -- Main ---------------------------------------------------------------------
 $cliArgs = @($RemainingArgs)
 if ($cliArgs.Count -eq 0 -and $args.Count -gt 0) {
   $cliArgs = @($args)
