@@ -6,4 +6,6 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 # App
 NEXT_PUBLIC_API_BASE_URL=/api
 NEXT_PUBLIC_APP_URL=http://localhost:3000
-NEXT_PUBLIC_LOCALE={{LOCALE}}
+
+# i18n — set by scaffold --default-locale (en | es)
+NEXT_PUBLIC_LOCALE={{DEFAULT_LOCALE}}

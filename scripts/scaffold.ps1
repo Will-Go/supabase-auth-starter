@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 
 $Script:ProjectName = ''
 $Script:Into = ''
-$Script:Locale = 'es'
+$Script:Locale = 'en'
 $Script:Force = $false
 $Script:DryRun = $false
 $Script:SkipInstall = $false
@@ -37,6 +37,7 @@ $TemplatesDir = Join-Path $StarterDir 'templates'
 $CoreDir = Join-Path $TemplatesDir 'core'
 $PlaceholdersDir = Join-Path $TemplatesDir 'placeholders'
 $ConfigDir = Join-Path $TemplatesDir 'config'
+$LocalesDir = Join-Path $TemplatesDir 'locales'
 $Manifest = Join-Path $TemplatesDir 'manifests\customize.json'
 
 $AuthDeps = @(
@@ -210,7 +211,8 @@ Usage:
 
 Options:
   -Into <path>       Scaffold into an existing Next.js project
-  -Locale <code>     Default locale (default: es)
+  -DefaultLocale <code>  Default locale (default: en; available: en, es)
+  -Locale <code>         Alias for -DefaultLocale
   -Force             Overwrite existing files
   -DryRun            Print actions without executing
   -SkipInstall       Skip dependency installation (file copy only)
@@ -218,7 +220,7 @@ Options:
 
 Examples:
   $name my-app
-  $name -Into .\existing-app -Locale en
+  $name -Into .\existing-app -DefaultLocale es
 "@
   [Console]::Error.WriteLine($text)
 }
@@ -229,10 +231,36 @@ function Test-Pnpm {
   }
 }
 
+function Get-AvailableLocales {
+  if (-not (Test-Path -LiteralPath $LocalesDir -PathType Container)) { return @() }
+  Get-ChildItem -LiteralPath $LocalesDir -Filter '*.json' -File |
+    ForEach-Object { $_.BaseName }
+}
+
+function Test-Locale {
+  $localeFile = Join-Path $LocalesDir "$($Script:Locale).json"
+  if (-not (Test-Path -LiteralPath $localeFile -PathType Leaf)) {
+    $available = (Get-AvailableLocales) -join ', '
+    Stop-Scaffold "Unsupported locale: $($Script:Locale) (available: $available)"
+  }
+}
+
+function Copy-LocaleFile {
+  param([string] $Target)
+
+  Test-Locale
+  Write-LogStep ('locales/' + $BCYN + $Script:Locale + '.json' + $R)
+  Copy-ScaffoldFile `
+    -Src (Join-Path $LocalesDir "$($Script:Locale).json") `
+    -Dest (Join-Path $Target "locales\$($Script:Locale).json") `
+    -AlwaysOverwrite $true
+}
+
 function Set-TemplateVars {
   param([string] $File)
 
   $content = [System.IO.File]::ReadAllText($File)
+  $content = $content -replace '\{\{DEFAULT_LOCALE\}\}', $Script:Locale
   $content = $content -replace '\{\{LOCALE\}\}', $Script:Locale
   $content = $content -replace '\{\{PROJECT_NAME\}\}', $Script:ProjectName
   [System.IO.File]::WriteAllText($File, $content)
@@ -556,12 +584,7 @@ function Install-ProjectScaffold {
   Write-LogStep ('UI placeholders ' + $BYLW + '(@customization-required)' + $R)
   Copy-ScaffoldTree -SrcDir $PlaceholdersDir -DestDir $Target -AlwaysOverwrite $true
 
-  $localeSrc = Join-Path $PlaceholdersDir "locales\{{LOCALE}}.json"
-  $localeSrcResolved = $localeSrc -replace '\{\{LOCALE\}\}', $Script:Locale
-  if (Test-Path -LiteralPath $localeSrcResolved -PathType Leaf) {
-    Write-LogStep ('locales/' + $BCYN + $Script:Locale + '.json' + $R)
-    Copy-ScaffoldFile -Src $localeSrcResolved -Dest (Join-Path $Target "locales\$($Script:Locale).json") -AlwaysOverwrite $true
-  }
+  Copy-LocaleFile -Target $Target
 
   Write-LogStep 'next-intl configuration'
   Set-NextIntlConfig $Target
@@ -631,7 +654,7 @@ function Parse-CliArgs {
         if ($i -ge $InputArgs.Count) { Stop-Scaffold "$arg requires a path" }
         $Script:Into = $InputArgs[$i]
       }
-      '^(-Locale|--locale)$' {
+      '^(-DefaultLocale|--default-locale|-Locale|--locale)$' {
         $i++
         if ($i -ge $InputArgs.Count) { Stop-Scaffold "$arg requires a code" }
         $Script:Locale = $InputArgs[$i]
@@ -672,6 +695,7 @@ if ($Script:Into -and $Script:ProjectName) {
   Stop-Scaffold 'Use either project name or -Into, not both'
 }
 
+Test-Locale
 Test-Pnpm
 Resolve-Target
 

@@ -1,0 +1,126 @@
+{
+  "home": {
+    "title": "Supabase Auth",
+    "subtitle": "Authentication with PKCE, email confirmation, and password recovery.",
+    "signedInAs": "Signed in as",
+    "goToWelcome": "Go to dashboard",
+    "login": "Log in",
+    "register": "Sign up"
+  },
+  "auth": {
+    "login": {
+      "title": "Log in",
+      "subtitle": "Access your account",
+      "email": "Email",
+      "password": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot your password?",
+      "signIn": "Sign in",
+      "signingIn": "Signing in...",
+      "signInWithGoogle": "Continue with Google",
+      "or": "or",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign up",
+      "success": "Signed in successfully",
+      "error": "Failed to sign in"
+    },
+    "register": {
+      "title": "Create account",
+      "subtitle": "Sign up with your email",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "createAccount": "Create account",
+      "creating": "Creating account...",
+      "registerWithGoogle": "Sign up with Google",
+      "or": "or",
+      "hasAccount": "Already have an account?",
+      "signIn": "Log in",
+      "success": "Account created. Check your email.",
+      "error": "Failed to sign up",
+      "successTitle": "Check your email",
+      "successSubtitle": "We sent you a confirmation link",
+      "successMessage": "Click the link in your email to activate your account before signing in.",
+      "goToLogin": "Go to log in"
+    },
+    "forgotPassword": {
+      "title": "Reset password",
+      "subtitle": "We'll send you a link to reset your password",
+      "email": "Email",
+      "sendLink": "Send link",
+      "sending": "Sending...",
+      "backToLogin": "Back to log in",
+      "success": "Link sent",
+      "error": "Failed to send link",
+      "successTitle": "Check your email",
+      "successSubtitle": "Recovery link sent",
+      "successMessage": "If an account exists with that email, you'll receive a link to reset your password.",
+      "sendAgain": "Send again"
+    },
+    "resetPassword": {
+      "title": "New password",
+      "subtitle": "Choose a secure password",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "updatePassword": "Update password",
+      "updating": "Updating...",
+      "backToLogin": "Back to log in",
+      "success": "Password updated",
+      "error": "Failed to update password",
+      "successTitle": "Password updated",
+      "successSubtitle": "You can now sign in",
+      "successMessage": "Your password was updated successfully.",
+      "goToLogin": "Go to log in"
+    },
+    "welcome": {
+      "title": "Welcome",
+      "subtitle": "You are signed in",
+      "email": "Email",
+      "signOut": "Sign out",
+      "backHome": "Back to home",
+      "loading": "Loading..."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "subtitle": "We couldn't complete authentication",
+      "backToLogin": "Back to log in"
+    },
+    "expiredToken": {
+      "title": "Link expired",
+      "subtitle": "This link is no longer valid. Request a new one.",
+      "requestNew": "Request new link",
+      "backToLogin": "Back to log in"
+    },
+    "unauthorized": {
+      "title": "Unauthorized",
+      "subtitle": "You don't have permission to access this page",
+      "backToLogin": "Log in"
+    }
+  },
+  "form_error": {
+    "auth": {
+      "email_invalid": "Invalid email address"
+    },
+    "password": {
+      "required": "Password is required",
+      "min": "Password must be at least 8 characters",
+      "uppercase": "Must include at least one uppercase letter",
+      "lowercase": "Must include at least one lowercase letter",
+      "number": "Must include at least one number",
+      "special": "Must include at least one special character",
+      "mismatch": "Passwords do not match",
+      "confirm_required": "Please confirm your password",
+      "checklistTitle": "Password requirements",
+      "checklistMin": "At least 8 characters",
+      "checklistUppercase": "At least one uppercase letter",
+      "checklistLowercase": "At least one lowercase letter",
+      "checklistNumber": "At least one number",
+      "checklistSpecial": "At least one special character (!@#$%^&*)"
+    }
+  },
+  "server": {
+    "error": {
+      "test": "Error test"
+    }
+  }
+}

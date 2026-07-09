@@ -48,7 +48,8 @@ supabase-auth-starter\scripts\scaffold.cmd --into .\my-existing-app
 | Flag              | Description                                           |
 | ----------------- | ----------------------------------------------------- |
 | `--into <path>`   | Scaffold into existing project (skip create-next-app) |
-| `--locale <code>` | Default locale (default: `es`)                        |
+| `--default-locale <code>` | Default locale (default: `en`; available: `en`, `es`) |
+| `--locale <code>`         | Alias for `--default-locale`                          |
 | `--force`         | Overwrite existing files                              |
 | `--dry-run`       | Print actions without executing                       |
 | `--skip-install`  | Skip dependency installation (file copy only)         |
@@ -163,6 +164,7 @@ supabase-auth-starter/
 └── templates/
     ├── core/           # Copy as-is
     ├── placeholders/   # UI — always overwrites, needs customization
+    ├── locales/        # en.json, es.json — copied per --default-locale
     ├── config/         # env template, next.config.ts
     └── manifests/      # customize.json
 ```

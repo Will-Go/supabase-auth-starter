@@ -17,10 +17,11 @@ TEMPLATES_DIR="$STARTER_DIR/templates"
 CORE_DIR="$TEMPLATES_DIR/core"
 PLACEHOLDERS_DIR="$TEMPLATES_DIR/placeholders"
 CONFIG_DIR="$TEMPLATES_DIR/config"
+LOCALES_DIR="$TEMPLATES_DIR/locales"
 MANIFEST="$TEMPLATES_DIR/manifests/customize.json"
 
 INTO=""
-LOCALE="es"
+LOCALE="en"
 DRY_RUN=false
 FORCE=false
 SKIP_INSTALL=false
@@ -113,16 +114,17 @@ Usage:
   $(basename "$0") --into <path> [options]
 
 Options:
-  --into <path>     Scaffold into an existing Next.js project
-  --locale <code>   Default locale (default: es)
-  --force           Overwrite existing files
+  --into <path>           Scaffold into an existing Next.js project
+  --default-locale <code> Default locale (default: en; available: en, es)
+  --locale <code>         Alias for --default-locale
+  --force                 Overwrite existing files
   --dry-run         Print actions without executing
   --skip-install    Skip dependency installation (file copy only)
   -h, --help        Show this help
 
 Examples:
   $(basename "$0") my-app
-  $(basename "$0") --into ./existing-app --locale en
+  $(basename "$0") --into ./existing-app --default-locale es
 EOF
 }
 
@@ -133,7 +135,7 @@ parse_args() {
         INTO="$2"
         shift 2
         ;;
-      --locale)
+      --default-locale|--locale)
         LOCALE="$2"
         shift 2
         ;;
@@ -182,6 +184,27 @@ require_pnpm() {
   fi
 }
 
+list_available_locales() {
+  local locales=() f
+  for f in "$LOCALES_DIR"/*.json; do
+    [[ -f "$f" ]] || continue
+    locales+=("$(basename "$f" .json)")
+  done
+  (IFS=','; echo "${locales[*]}")
+}
+
+validate_locale() {
+  [[ -f "$LOCALES_DIR/$LOCALE.json" ]] || \
+    die "Unsupported locale: $LOCALE (available: $(list_available_locales))"
+}
+
+copy_locale_file() {
+  local target="$1"
+  validate_locale
+  log_step "locales/${_BCYN}$LOCALE.json${_R}"
+  copy_file "$LOCALES_DIR/$LOCALE.json" "$target/locales/$LOCALE.json" true
+}
+
 sed_inplace() {
   # BSD sed (macOS) requires '' after -i; GNU sed does not.
   if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -194,6 +217,7 @@ sed_inplace() {
 apply_template_vars() {
   local file="$1"
   # Use | delimiter — PROJECT_NAME may contain slashes (e.g. ./test breaks s/// syntax).
+  sed_inplace "s|{{DEFAULT_LOCALE}}|$LOCALE|g" "$file"
   sed_inplace "s|{{LOCALE}}|$LOCALE|g" "$file"
   sed_inplace "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" "$file"
 }
@@ -479,12 +503,7 @@ apply_project_scaffold() {
   log_step "UI placeholders ${_BYLW}(@customization-required)${_R}"
   copy_tree "$PLACEHOLDERS_DIR" "$target" true
 
-  local locale_src="$PLACEHOLDERS_DIR/locales/{{LOCALE}}.json"
-  local locale_src_resolved="${locale_src/\{\{LOCALE\}\}/$LOCALE}"
-  if [[ -f "$locale_src_resolved" ]]; then
-    log_step "locales/${_BCYN}$LOCALE.json${_R}"
-    copy_file "$locale_src_resolved" "$target/locales/$LOCALE.json" true
-  fi
+  copy_locale_file "$target"
 
   log_step "next-intl configuration"
   configure_next_intl "$target"
@@ -537,6 +556,7 @@ print_post_setup() {
 
 main() {
   parse_args "$@"
+  validate_locale
   require_pnpm
 
   resolve_target

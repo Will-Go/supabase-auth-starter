@@ -23,7 +23,7 @@ Scaffold a complete Supabase PKCE auth stack into a Next.js 16 project. Referenc
 ./supabase-auth-starter/scripts/scaffold.sh --into ./existing-app
 
 # Options
-./supabase-auth-starter/scripts/scaffold.sh --into ./app --locale en --force
+./supabase-auth-starter/scripts/scaffold.sh --into ./app --default-locale es --force
 ./supabase-auth-starter/scripts/scaffold.sh my-app --dry-run
 ```
 
