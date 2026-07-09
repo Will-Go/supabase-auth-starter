@@ -339,10 +339,10 @@ function New-NextApp {
   $cnaArgs = @(
     'create', 'next-app@16', $Name,
     '--typescript', '--tailwind', '--eslint', '--app', '--no-src-dir',
-    '--import-alias', '@/*', '--use-pnpm', '--yes'
+    '--import-alias', '@/*', '--use-pnpm', '--yes', '--skip-install'
   )
 
-  Invoke-External -Command 'pnpm' -Arguments $cnaArgs -AllowFailure
+  Invoke-External -Command 'pnpm' -Arguments $cnaArgs
 
   if (-not (Test-Path -LiteralPath $Name -PathType Container)) {
     Stop-Scaffold "create-next-app did not create directory: $Name"
@@ -367,6 +367,7 @@ function Resolve-Target {
 
   New-NextApp $Script:ProjectName
   $script:TargetDir = (Resolve-Path -LiteralPath $Script:ProjectName).Path
+  $Script:ProjectName = Split-Path -Leaf $script:TargetDir
   Test-TargetProject $script:TargetDir
 }
 

@@ -182,10 +182,20 @@ require_pnpm() {
   fi
 }
 
+sed_inplace() {
+  # BSD sed (macOS) requires '' after -i; GNU sed does not.
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
+
 apply_template_vars() {
   local file="$1"
-  sed -i '' "s/{{LOCALE}}/$LOCALE/g" "$file" 2>/dev/null || sed -i "s/{{LOCALE}}/$LOCALE/g" "$file"
-  sed -i '' "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$file" 2>/dev/null || sed -i "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" "$file"
+  # Use | delimiter — PROJECT_NAME may contain slashes (e.g. ./test breaks s/// syntax).
+  sed_inplace "s|{{LOCALE}}|$LOCALE|g" "$file"
+  sed_inplace "s|{{PROJECT_NAME}}|$PROJECT_NAME|g" "$file"
 }
 
 copy_file() {
@@ -263,10 +273,11 @@ create_next_app() {
     return
   fi
 
+  # --skip-install: Phase 2 runs pnpm install --ignore-scripts (avoids pnpm v10+ build-script approval).
   # Stderr only — stdout would pollute TARGET_DIR if captured via command substitution
   pnpm create next-app@16 "$name" \
     --typescript --tailwind --eslint --app --no-src-dir \
-    --import-alias "@/*" --use-pnpm --yes >&2 || true
+    --import-alias "@/*" --use-pnpm --yes --skip-install >&2
 
   [[ -d "$name" ]] || die "create-next-app did not create directory: $name"
 }
@@ -288,6 +299,7 @@ resolve_target() {
 
   create_next_app "$PROJECT_NAME"
   TARGET_DIR="$(cd "$PROJECT_NAME" && pwd)"
+  PROJECT_NAME="$(basename "$TARGET_DIR")"
   validate_target "$TARGET_DIR"
 }
 
